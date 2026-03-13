@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title> Job'Intelligence Dashboard - Light Edition</title>
+    <title>Job'Intelligence Dashboard - Light Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&family=Prompt:wght@400;600&display=swap" rel="stylesheet">
     <style>
@@ -213,8 +213,8 @@
         <div class="icon-box">📊</div>
         <h2>Profit by Shelf</h2>
         <p>ยินดีต้อนรับ กรุณาเข้าสู่ระบบเพื่อดำเนินการต่อ</p>
-        <input type="text" id="username" placeholder="Username" >
-        <input type="password" id="password" placeholder="Password" >
+        <input type="text" id="username" placeholder="Username">
+        <input type="password" id="password" placeholder="Password">
         <button class="btn-login" onclick="checkLogin()">เข้าสู่ระบบ</button>
         <p id="loginError" style="color:var(--danger-rose); margin-top:15px; display:none; font-weight:600;">⚠️ ข้อมูลไม่ถูกต้อง กรุณาลองใหม่</p>
     </div>
@@ -230,7 +230,7 @@
     <div class="container">
         <header class="glass-header">
             <div class="brand">
-                <h1>PLP เสน่ห์ร้านสั่งตัด พื้นที่ BE </h1>
+                <h1>PLP เสน่ห์ร้านสั่งตัด พื้นที่ BE</h1>
                 <p id="statusMsg" style="margin: 5px 0 0; color: var(--text-sub); font-size: 11px;">ระบบแสดงผลข้อมูลอัจฉริยะ</p>
             </div>
             <div class="nav-controls">
@@ -250,7 +250,7 @@
             <div class="stat-card blue">
                 <h3>รวมยอดขาย UPSD</h3>
                 <span class="value" id="upsdVal">0.00</span>
-                <small>ความเร็วในการขายรวมของกลุ่ม</small>
+                <small>ความเร็วในการขายรวม (ทศนิยม 2 ตำแหน่ง)</small>
             </div>
             <div class="stat-card orange">
                 <h3>Avg GP PRODUCT %</h3>
@@ -299,63 +299,49 @@
         }
     }
 
-    // Latest API URL
     const API_URL = "https://script.google.com/macros/s/AKfycbxik-ixqj3Z9zEuIsj_gDAIUjVWUO4Hrlkwg_XYRLqc3WNfMKzZvVfA1HmxVxtN8-RX/exec";
 
     let rawData = [];
     let myChart = null;
 
-    // Smart Value Finder (Robust Key Mapping)
+    // Smart Value Finder
     const findValue = (obj, searchKeys) => {
         if (!obj) return undefined;
         const itemKeys = Object.keys(obj);
-        
         for (let s of searchKeys) {
-            // Priority 1: Exact Match
             if (obj[s] !== undefined && obj[s] !== null) return obj[s];
-            
-            // Priority 2: Fuzzy Match (case insensitive, no spaces, no %)
             const cleanedSearch = s.toLowerCase().replace(/[\s%]/g, '');
-            const fuzzyKey = itemKeys.find(k => {
-                const cleanedK = k.toLowerCase().replace(/[\s%]/g, '');
-                return cleanedK === cleanedSearch;
-            });
+            const fuzzyKey = itemKeys.find(k => k.toLowerCase().replace(/[\s%]/g, '') === cleanedSearch);
             if (fuzzyKey !== undefined) return obj[fuzzyKey];
         }
         return undefined;
     };
 
-    // Improved Number Parser - Handles Excel Errors
-    const cleanNum = (v) => {
+    // Improved Number Parser - Optimized for UPSD (Floats) and GP (Percents)
+    const cleanNum = (v, isPercentage = false) => {
         if (v === undefined || v === null || v === "" || v === "#VALUE!" || v === "#DIV/0!") return 0;
         
-        // Handle direct numbers
         if (typeof v === 'number') {
-            // Check if it's a decimal like 0.356 which likely means 35.6%
-            if (v > 0 && v < 1) return v * 100;
+            if (isPercentage && v > 0 && v <= 1) return v * 100;
             return v;
         }
 
         const strVal = v.toString().trim();
         if (strVal === "#VALUE!" || strVal === "#DIV/0!") return 0;
 
-        // Remove everything except digits, dots, and minus sign
         const cleanedStr = strVal.replace(/[^0-9.-]+/g, "");
         let num = parseFloat(cleanedStr);
-
         if (isNaN(num)) return 0;
 
-        // Logic check: if string had % or was specifically 0.xxx, it's a percentage
-        if (strVal.includes('%')) return num;
-        
-        // If it's a small decimal (between 0 and 1, e.g., 0.35) and didn't have a % in string, 
-        // spreadsheet often exports it as 0.35. Convert to 35.
-        if (num > 0 && num < 1 && !strVal.includes('%')) return num * 100;
+        // If context is percentage, handle 0.xx conversion
+        if (isPercentage) {
+            if (strVal.includes('%')) return num;
+            if (num > 0 && num <= 1) return num * 100;
+        }
         
         return num;
     };
 
-    // Get PMA Prefix (First 2 digits of SKU)
     const getPmaPrefix = (item) => {
         const skuKeys = ['รหัสสินค้า', 'Number', 'sku', 'sku_code', 'รหัส'];
         const sku = findValue(item, skuKeys) || "";
@@ -368,22 +354,15 @@
         try {
             const res = await fetch(API_URL);
             rawData = await res.json();
-            
-            if (!Array.isArray(rawData)) {
-                throw new Error("Data format error: Array expected");
-            }
+            if (!Array.isArray(rawData)) throw new Error("Data format error");
 
-            // Assign Derived PMA
-            rawData.forEach(item => {
-                item.derivedPma = getPmaPrefix(item);
-            });
-
+            rawData.forEach(item => { item.derivedPma = getPmaPrefix(item); });
             initFilters();
             updateUI();
             document.getElementById('statusMsg').innerText = "อัปเดตล่าสุด: " + new Date().toLocaleTimeString();
         } catch (e) {
             console.error("Sync Error:", e);
-            alert("ดึงข้อมูลไม่สำเร็จ: กรุณาลองใหม่ภายหลัง");
+            alert("ดึงข้อมูลไม่สำเร็จ");
         } finally {
             document.getElementById('loading').style.display = 'none';
         }
@@ -392,9 +371,7 @@
     function initFilters() {
         const pmaSel = document.getElementById('pmaSelect');
         const pmas = [...new Set(rawData.map(d => d.derivedPma))]
-            .filter(p => p && /^\d+$/.test(p) && p !== "00")
-            .sort();
-
+            .filter(p => p && /^\d+$/.test(p) && p !== "00").sort();
         pmaSel.innerHTML = `<option value="ALL">PMA ทั้งหมด</option>` + 
                            pmas.map(p => `<option value="${p}">PMA ${p} (ขึ้นต้นด้วย ${p})</option>`).join('');
         pmaSel.value = "ALL";
@@ -404,9 +381,7 @@
         const catKeys = ['ประเภทสินค้า', 'category', 'product_type', 'ประเภท'];
         const cats = [...new Set(rawData.map(d => findValue(d, catKeys)))]
             .filter(c => c && c !== "#VALUE!") 
-            .map(c => c === "#DIV/0!" ? "ไม่มียอดขาย" : c)
-            .sort();
-            
+            .map(c => c === "#DIV/0!" ? "ไม่มียอดขาย" : c).sort();
         catSel.innerHTML = `<option value="ALL">ทุกประเภทสินค้า</option>` + cats.map(c => `<option value="${c}">${c}</option>`).join('');
         catSel.value = "ALL";
         catSel.onchange = updateUI;
@@ -418,14 +393,12 @@
         const search = document.getElementById('searchInput').value.toLowerCase();
         const metric = document.getElementById('metricSelector').value;
 
-        // Key Mappings
         const keys = {
             product: ['Product', 'ชื่อสินค้า', 'product_name', 'รายการ'],
             sku: ['รหัสสินค้า', 'Number', 'sku', 'sku_code', 'รหัส'],
             cat: ['ประเภทสินค้า', 'category', 'ประเภท'],
-            // Updated to prioritize GP PRODUCT
-            gp: ['GP PRODUCT', 'GP PRODUCT %', 'GP%', 'gp_percent', 'GP %', 'GP'], 
-            bpsd: ['ยอดขายรวม (BPSD)', 'bpsd', 'ยอดขายรวม(BPSD)', 'BPSD', 'total_sales', 'ยอดขาย'],
+            gp: ['GP PRODUCT', 'GP PRODUCT %', 'GP%', 'GP'], 
+            bpsd: ['ยอดขายรวม (BPSD)', 'bpsd', 'BPSD', 'ยอดขาย'],
             upsd: ['UPSD', 'upsd_rate', 'ยอดขายต่อวัน']
         };
 
@@ -433,36 +406,36 @@
             const itemPma = d.derivedPma;
             let itemCat = findValue(d, keys.cat);
             if (itemCat === "#DIV/0!") itemCat = "ไม่มียอดขาย";
-            
             const itemName = (findValue(d, keys.product) || "").toString().toLowerCase();
             const itemSku = (findValue(d, keys.sku) || "").toString().toLowerCase();
-
             const matchesPma = selectedPma === "ALL" || itemPma === selectedPma;
             const matchesCat = selectedCat === "ALL" || (selectedCat === "ไม่มียอดขาย" ? itemCat === "ไม่มียอดขาย" : itemCat === selectedCat);
             const matchesSearch = itemName.includes(search) || itemSku.includes(search);
-            
             return matchesPma && matchesCat && matchesSearch;
         });
 
-        // 1. Update Metrics
         document.getElementById('skuCount').innerText = filtered.length.toLocaleString();
         
+        // Sum BPSD
         const totalSales = filtered.reduce((acc, d) => acc + cleanNum(findValue(d, keys.bpsd)), 0);
         document.getElementById('salesVal').innerText = totalSales.toLocaleString();
 
-        const gpSum = filtered.reduce((acc, d) => acc + cleanNum(findValue(d, keys.gp)), 0);
+        // Avg GP%
+        const gpSum = filtered.reduce((acc, d) => acc + cleanNum(findValue(d, keys.gp), true), 0);
         const avgGp = filtered.length > 0 ? (gpSum / filtered.length) : 0;
         document.getElementById('gpAvg').innerText = avgGp.toFixed(2) + "%";
 
-        const upsdTotal = filtered.reduce((acc, d) => acc + cleanNum(findValue(d, keys.upsd)), 0);
-        document.getElementById('upsdVal').innerText = upsdTotal.toLocaleString();
-        document.getElementById('salesDesc').innerText = "รวมยอดขาย BPSD จากกลุ่มที่เลือก";
+        // FIXED: Sum UPSD with 2 Decimal Precision
+        const upsdTotal = filtered.reduce((acc, d) => {
+            const val = cleanNum(findValue(d, keys.upsd), false);
+            return acc + val;
+        }, 0);
+        // Display as float with 2 decimals
+        document.getElementById('upsdVal').innerText = upsdTotal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-        // 2. Performance Chart (Updated to draw from GP PRODUCT)
         const ctx = document.getElementById('mainChart').getContext('2d');
         if (myChart) myChart.destroy();
         const chartData = filtered.slice(0, 50); 
-
         myChart = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -470,74 +443,49 @@
                 datasets: [{
                     label: metric,
                     data: chartData.map(d => {
-                        if (metric === "GP%") return cleanNum(findValue(d, keys.gp));
+                        if (metric === "GP%") return cleanNum(findValue(d, keys.gp), true);
                         if (metric === "ยอดขายรวม (BPSD)") return cleanNum(findValue(d, keys.bpsd));
                         return 0;
                     }),
                     backgroundColor: chartData.map(d => {
-                        const gp = cleanNum(findValue(d, keys.gp));
+                        const gp = cleanNum(findValue(d, keys.gp), true);
                         return gp >= 35 ? '#10b981' : (gp < 30 ? '#f43f5e' : '#f59e0b');
                     }),
-                    borderRadius: 10,
-                    barThickness: 'flex',
-                    maxBarThickness: 30
+                    borderRadius: 10, barThickness: 'flex', maxBarThickness: 30
                 }]
             },
             options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { 
-                    legend: { display: false },
-                    tooltip: {
-                        titleFont: { size: 16, family: 'Prompt' },
-                        bodyFont: { size: 14, family: 'Prompt' },
-                        padding: 12
-                    }
-                },
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
                 scales: {
-                    x: { 
-                        grid: { color: '#f1f5f9' }, 
-                        ticks: { color: '#64748b', font: { size: 14, family: 'Prompt', weight: '600' } } 
-                    },
-                    y: { 
-                        grid: { display: false }, 
-                        ticks: { color: '#1e293b', font: { size: 12, family: 'Prompt', weight: '500' } } 
-                    }
+                    x: { grid: { color: '#f1f5f9' }, ticks: { font: { family: 'Prompt' } } },
+                    y: { grid: { display: false }, ticks: { font: { family: 'Prompt', size: 12 } } }
                 }
             }
         });
 
-        // 3. Update Product Insights List (EXCLUSIVELY USE GP PRODUCT)
         const container = document.getElementById('listContainer');
         if (filtered.length === 0) {
-            container.innerHTML = '<p style="text-align:center; padding:20px; color:#94a3b8;">ไม่พบข้อมูลตามเงื่อนไขที่ระบุ</p>';
+            container.innerHTML = '<p style="text-align:center; padding:20px; color:#94a3b8;">ไม่พบข้อมูล</p>';
         } else {
             container.innerHTML = filtered.map(item => {
-                // FIXED: Pull specifically from GP PRODUCT for the list
                 const gpRaw = findValue(item, ['GP PRODUCT', 'GP PRODUCT %']);
                 const isDivError = String(gpRaw).includes("#DIV/0!");
-                const gpVal = cleanNum(gpRaw);
-                const itemName = findValue(item, keys.product) || "Unknown Product";
-                const itemSku = findValue(item, keys.sku) || "N/A";
-                let itemCat = findValue(item, keys.cat) || "Uncategorized";
-                if (itemCat === "#DIV/0!") itemCat = "ไม่มียอดขาย";
-                
+                const gpVal = cleanNum(gpRaw, true);
                 const itemBpsd = cleanNum(findValue(item, keys.bpsd));
-
+                const itemUpsd = cleanNum(findValue(item, keys.upsd));
                 const gpDisplayText = isDivError ? "ไม่มียอดขาย" : gpVal.toFixed(2) + "%";
                 const badgeClass = isDivError ? 'bg-neutral' : (gpVal < 30 ? 'bg-danger' : 'bg-success');
-
                 return `
                     <div class="item-row">
                         <div class="item-info">
-                            <b>${itemName}</b>
-                            <span>SKU: ${itemSku} | ประเภท: ${itemCat}</span>
+                            <b>${findValue(item, keys.product) || "Unknown"}</b>
+                            <span>SKU: ${findValue(item, keys.sku) || "N/A"} | UPSD: ${itemUpsd.toFixed(2)}</span>
                         </div>
                         <div class="item-meta">
                             <span class="badge ${badgeClass}">${gpDisplayText}</span>
                             <div style="font-size: 11px; margin-top: 5px; color: #94a3b8;">
-                                BPSD: ${itemBpsd.toLocaleString()} | GP Product: ${gpVal.toFixed(2)}%
+                                BPSD: ${itemBpsd.toLocaleString()} | GP: ${gpVal.toFixed(2)}%
                             </div>
                         </div>
                     </div>
